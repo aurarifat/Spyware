@@ -25,7 +25,8 @@ data class DeviceDetailUiState(
 class DeviceDetailViewModel(
     private val appContainer: AppContainer,
     private val deviceId: String,
-    private val parentUid: String
+    private val parentUid: String,
+    private val context: android.content.Context? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -35,6 +36,26 @@ class DeviceDetailViewModel(
 
     init {
         observeDevice()
+        startP2PSync()
+    }
+
+    private fun startP2PSync() {
+        if (context == null) return
+        val p2pClient = com.example.data.p2p.ParentP2PClient.getInstance(context)
+        viewModelScope.launch {
+            while (kotlinx.coroutines.isActive) {
+                try {
+                    val address = p2pClient.getDeviceAddress(deviceId) ?: "127.0.0.1:8888"
+                    val res = p2pClient.fetchChildStatus(address)
+                    if (res is AppResult.Success) {
+                        appContainer.deviceRepository.updateLocalStateFromP2P(res.data)
+                    }
+                } catch (e: Exception) {
+                    // Ignore transient network errors
+                }
+                kotlinx.coroutines.delay(5000)
+            }
+        }
     }
 
     private fun observeDevice() {
@@ -126,11 +147,12 @@ class DeviceDetailViewModel(
     class Factory(
         private val appContainer: AppContainer,
         private val deviceId: String,
-        private val parentUid: String
+        private val parentUid: String,
+        private val context: android.content.Context? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DeviceDetailViewModel(appContainer, deviceId, parentUid) as T
+            return DeviceDetailViewModel(appContainer, deviceId, parentUid, context) as T
         }
     }
 }

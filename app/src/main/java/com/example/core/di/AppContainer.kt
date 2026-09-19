@@ -81,7 +81,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val commandRepository: ICommandRepository by lazy {
-        CommandRepositoryImpl(firebaseDataSource)
+        CommandRepositoryImpl(firebaseDataSource, context)
     }
 
     override val locationRepository: ILocationRepository by lazy {

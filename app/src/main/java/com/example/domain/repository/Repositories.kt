@@ -37,6 +37,7 @@ interface IDeviceRepository {
     fun observeParentLinkedDevices(parentUid: String): Flow<List<LinkedChildDevice>>
     suspend fun linkChildToParent(parentUid: String, device: LinkedChildDevice): AppResult<Unit>
     suspend fun getEnrollment(deviceId: String): AppResult<EnrollmentConsent?>
+    suspend fun updateLocalStateFromP2P(state: ChildDeviceFullState): AppResult<Unit>
 }
 
 interface ICommandRepository {

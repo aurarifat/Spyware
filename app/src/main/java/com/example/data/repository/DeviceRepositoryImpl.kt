@@ -60,4 +60,9 @@ class DeviceRepositoryImpl(
         // Will be populated via observeDeviceFullState or cached in dataSource
         return AppResult.Success(null)
     }
+
+    override suspend fun updateLocalStateFromP2P(state: ChildDeviceFullState): AppResult<Unit> {
+        firebaseDataSource.setLocalDeviceFullState(state)
+        return AppResult.Success(Unit)
+    }
 }

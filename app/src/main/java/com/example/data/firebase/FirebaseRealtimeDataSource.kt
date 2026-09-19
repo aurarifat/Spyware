@@ -464,10 +464,14 @@ class FirebaseRealtimeDataSource(private val context: Context) {
         }
     }
 
-    private fun updateLocalState(deviceId: String, update: (ChildDeviceFullState) -> ChildDeviceFullState) {
+    fun updateLocalState(deviceId: String, update: (ChildDeviceFullState) -> ChildDeviceFullState) {
         val current = localDeviceStates.value[deviceId] ?: ChildDeviceFullState(deviceId = deviceId)
         val updated = update(current)
         localDeviceStates.value = localDeviceStates.value + (deviceId to updated)
+    }
+
+    fun setLocalDeviceFullState(state: ChildDeviceFullState) {
+        localDeviceStates.value = localDeviceStates.value + (state.deviceId to state)
     }
 
     companion object {

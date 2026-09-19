@@ -13,8 +13,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class CommandRepositoryImpl(
-    private val firebaseDataSource: FirebaseRealtimeDataSource
+    private val firebaseDataSource: FirebaseRealtimeDataSource,
+    private val context: Context
 ) : ICommandRepository {
+
+    private val p2pClient by lazy { com.example.data.p2p.ParentP2PClient.getInstance(context) }
 
     override suspend fun sendFlashlightCommand(
         deviceId: String,
@@ -30,6 +33,13 @@ class CommandRepositoryImpl(
             "requestedBy" to parentUid
         )
         SafeLogger.i(TAG, "Parent $parentUid sending Flashlight ($enabled) to $deviceId")
+
+        // Try direct P2P connection if address registered
+        val p2pAddress = p2pClient.getDeviceAddress(deviceId)
+        if (!p2pAddress.isNullOrBlank()) {
+            p2pClient.sendCommand(p2pAddress, "flashlight", mapOf("enabled" to enabled))
+        }
+
         return firebaseDataSource.sendCommand(deviceId, FirebasePaths.CMD_FLASHLIGHT, payload)
     }
 
@@ -46,6 +56,13 @@ class CommandRepositoryImpl(
             "requestedBy" to parentUid
         )
         SafeLogger.i(TAG, "Parent $parentUid sending RefreshStatus to $deviceId")
+
+        // Try direct P2P connection if address registered
+        val p2pAddress = p2pClient.getDeviceAddress(deviceId)
+        if (!p2pAddress.isNullOrBlank()) {
+            p2pClient.sendCommand(p2pAddress, "refresh")
+        }
+
         return firebaseDataSource.sendCommand(deviceId, FirebasePaths.CMD_REFRESH_STATUS, payload)
     }
 
