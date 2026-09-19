@@ -20,7 +20,7 @@ enum class PermissionType(
     USAGE_STATS(
         title = "Digital Wellbeing & Screen Time",
         description = "Analyzes app usage statistics and daily foreground screen time.",
-        whyNeeded = "Enables parents and children to see daily screen time breakdown (e.g. YouTube, Games) to encourage healthy digital habits. Granted via Android Usage Access Settings.",
+        whyNeeded = "Enables tracking of daily app usage and screen time. In the 'Apps with usage access' / 'Usage of data access' list, locate 'Family Wellbeing' and switch 'Permit usage access' ON.",
         isSpecialAccess = true
     ),
     CALL_LOG(

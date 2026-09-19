@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,11 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -65,16 +68,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.example.domain.model.AppUsageEntry
 import com.example.domain.model.CallEntry
 import com.example.domain.model.MediaEntry
 import com.example.parent.device.DeviceDetailViewModel
+import com.example.ui.media.FullScreenImageViewerDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,13 +92,22 @@ import java.util.Locale
 @Composable
 fun ParentDeviceDetailScreen(
     viewModel: DeviceDetailViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToLiveCamera: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showUnlinkDialog by remember { mutableStateOf(false) }
+    var selectedMediaForFullScreen by remember { mutableStateOf<MediaEntry?>(null) }
+
+    if (selectedMediaForFullScreen != null) {
+        FullScreenImageViewerDialog(
+            media = selectedMediaForFullScreen,
+            onDismiss = { selectedMediaForFullScreen = null }
+        )
+    }
 
     LaunchedEffect(uiState.isUnlinked) {
         if (uiState.isUnlinked) {
@@ -344,6 +362,22 @@ fun ParentDeviceDetailScreen(
                             }
                         }
                     }
+
+                    if (onNavigateToLiveCamera != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onNavigateToLiveCamera,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("parent_open_live_camera_button"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Open Live Camera View", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
 
@@ -505,7 +539,7 @@ fun ParentDeviceDetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Recent Photos Metadata Card (Opt-in, Zero-Upload)
+            // Recent Photos & Gallery Card (Tap to view full screen)
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -513,32 +547,52 @@ fun ParentDeviceDetailScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Recent Photos Metadata (Zero-Upload)", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Recent Photos & Gallery", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "Full Screen",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Image files are NEVER uploaded to Firebase. Only minimal file metadata is shown.",
+                        text = "Tap any photo below to view the whole picture in full screen.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     val media = state?.media ?: emptyList()
                     if (media.isEmpty()) {
                         Text(
-                            "No recent media metadata available.",
+                            "No recent media photos available.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        media.take(5).forEach { item ->
-                            MediaItemRow(item = item)
-                            Spacer(modifier = Modifier.height(4.dp))
+                        media.take(8).forEach { item ->
+                            ParentMediaItemCard(
+                                item = item,
+                                onClick = { selectedMediaForFullScreen = item }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
@@ -608,19 +662,100 @@ private fun CallItemRow(call: CallEntry) {
 }
 
 @Composable
-private fun MediaItemRow(item: MediaEntry) {
+private fun ParentMediaItemCard(
+    item: MediaEntry,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
     val dateStr = if (item.dateAdded > 0) SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(item.dateAdded)) else ""
-    Row(
+
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .testTag("parent_media_item_${item.mediaId}")
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(item.displayName, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), maxLines = 1)
-            Text(item.relativePath, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Image Preview Thumbnail
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(Color.DarkGray, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.contentUri.isNotBlank()) {
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(android.net.Uri.parse(item.contentUri))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = item.displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        },
+                        error = {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                        }
+                    )
+                } else if (item.thumbnailBase64.isNotBlank()) {
+                    val bitmap = remember(item.thumbnailBase64) {
+                        try {
+                            val bytes = android.util.Base64.decode(item.thumbnailBase64, android.util.Base64.DEFAULT)
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (bitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = item.displayName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                    }
+                } else {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.displayName,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (dateStr.isNotBlank()) dateStr else item.relativePath,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = "View Full Screen",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(22.dp)
+                    .padding(end = 4.dp)
+            )
         }
-        Text(dateStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -52,6 +52,8 @@ data class MediaEntry(
     val mediaId: String = "",
     val displayName: String = "",
     val relativePath: String = "",
+    val contentUri: String = "",
+    val thumbnailBase64: String = "",
     val dateAdded: Long = 0L
 )
 

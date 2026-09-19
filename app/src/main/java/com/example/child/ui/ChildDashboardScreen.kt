@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
@@ -66,17 +69,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
+import com.example.domain.model.MediaEntry
+import com.example.ui.media.FullScreenImageViewerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChildDashboardScreen(
     viewModel: ChildModeViewModel,
     onNavigateToPermissions: () -> Unit,
+    onNavigateToLiveCamera: () -> Unit,
     onSwitchRole: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -85,6 +96,14 @@ fun ChildDashboardScreen(
 
     var showRevokeDialog by remember { mutableStateOf(false) }
     var parentUidInput by remember { mutableStateOf(uiState.linkedParentUid) }
+    var selectedMediaForFullScreen by remember { mutableStateOf<MediaEntry?>(null) }
+
+    if (selectedMediaForFullScreen != null) {
+        FullScreenImageViewerDialog(
+            media = selectedMediaForFullScreen,
+            onDismiss = { selectedMediaForFullScreen = null }
+        )
+    }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -413,6 +432,134 @@ fun ChildDashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Live Camera View Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Camera View Live",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF2E7D32)
+                        ) {
+                            Text(
+                                text = "LIVE",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Real-time live camera feed with front/rear lens switching, torch control, and photo capture.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onNavigateToLiveCamera,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("open_live_camera_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Open Live Camera View", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Device Photos & Gallery Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Photos & Gallery",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        IconButton(onClick = { viewModel.loadRecentMedia() }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh Photos")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Tap any photo below to view the whole picture in full screen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val mediaList = uiState.media
+                    if (mediaList.isEmpty()) {
+                        Text(
+                            text = "No recent photos detected or media permission not granted yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(mediaList.size) { index ->
+                                val item = mediaList[index]
+                                GalleryThumbnailItem(
+                                    item = item,
+                                    onClick = { selectedMediaForFullScreen = item }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Permission Management Button
             OutlinedButton(
                 onClick = onNavigateToPermissions,
@@ -465,5 +612,79 @@ private fun MetricRow(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+fun GalleryThumbnailItem(
+    item: MediaEntry,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .width(110.dp)
+            .testTag("gallery_thumbnail_${item.mediaId}")
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .background(Color.DarkGray),
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.contentUri.isNotBlank()) {
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(android.net.Uri.parse(item.contentUri))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = item.displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            }
+                        },
+                        error = {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                        }
+                    )
+                } else if (item.thumbnailBase64.isNotBlank()) {
+                    val bitmap = remember(item.thumbnailBase64) {
+                        try {
+                            val bytes = android.util.Base64.decode(item.thumbnailBase64, android.util.Base64.DEFAULT)
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (bitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = item.displayName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                    }
+                } else {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.LightGray)
+                }
+            }
+            Text(
+                text = item.displayName,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+            )
+        }
     }
 }

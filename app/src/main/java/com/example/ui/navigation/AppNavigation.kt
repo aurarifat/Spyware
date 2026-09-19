@@ -27,6 +27,8 @@ object Routes {
     const val CHILD_CONSENT = "child_consent"
     const val CHILD_PERMISSIONS = "child_permissions"
     const val CHILD_DASHBOARD = "child_dashboard"
+    const val LIVE_CAMERA = "live_camera"
+    const val CAMERA_VIEWFINDER = "camera_viewfinder"
     const val PARENT_AUTH = "parent_auth"
     const val PARENT_DASHBOARD = "parent_dashboard"
     const val PARENT_DEVICE_DETAIL = "parent_device_detail/{deviceId}/{parentUid}"
@@ -125,6 +127,9 @@ fun AppNavigation(
                 onNavigateToPermissions = {
                     navController.navigate(Routes.CHILD_PERMISSIONS)
                 },
+                onNavigateToLiveCamera = {
+                    navController.navigate(Routes.LIVE_CAMERA)
+                },
                 onSwitchRole = {
                     localPrefs.clearUserRole()
                     navController.navigate(Routes.ROLE_SELECTION) {
@@ -193,6 +198,19 @@ fun AppNavigation(
 
             ParentDeviceDetailScreen(
                 viewModel = detailVm,
+                onBack = { navController.popBackStack() },
+                onNavigateToLiveCamera = { navController.navigate(Routes.LIVE_CAMERA) }
+            )
+        }
+
+        composable(Routes.LIVE_CAMERA) {
+            com.example.camera.CameraViewfinderScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.CAMERA_VIEWFINDER) {
+            com.example.camera.CameraViewfinderScreen(
                 onBack = { navController.popBackStack() }
             )
         }

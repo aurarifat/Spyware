@@ -105,10 +105,16 @@ class PermissionManager(private val context: Context) {
      * Creates an Intent to navigate the user directly to the system Usage Access Settings.
      */
     fun createUsageAccessSettingsIntent(): Intent {
-        return Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+        val specificIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            // Optional data URI pointing to current app package
             data = Uri.parse("package:${context.packageName}")
+        }
+        return if (specificIntent.resolveActivity(context.packageManager) != null) {
+            specificIntent
+        } else {
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
         }
     }
 

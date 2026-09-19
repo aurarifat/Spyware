@@ -61,6 +61,7 @@ class ChildModeViewModel(
         initializeChildAuth()
         observeDeviceCommands(devId)
         refreshLocalStatus()
+        loadRecentMedia()
     }
 
     private fun initializeChildAuth() {
@@ -167,6 +168,16 @@ class ChildModeViewModel(
     fun refreshLocalStatus() {
         val permissions = appContainer.permissionManager.getPermissionMap()
         _uiState.update { it.copy(permissions = permissions) }
+        loadRecentMedia()
+    }
+
+    fun loadRecentMedia() {
+        viewModelScope.launch {
+            val mediaRes = appContainer.mediaRepository.getRecentMedia(12)
+            if (mediaRes is AppResult.Success) {
+                _uiState.update { it.copy(media = mediaRes.data) }
+            }
+        }
     }
 
     fun syncNow() {

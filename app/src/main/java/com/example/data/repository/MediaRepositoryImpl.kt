@@ -1,23 +1,26 @@
 package com.example.data.repository
 
+import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Base64
 import com.example.core.common.AppError
 import com.example.core.common.AppResult
 import com.example.core.common.SafeLogger
 import com.example.core.permissions.PermissionManager
 import com.example.domain.model.MediaEntry
 import com.example.domain.repository.IMediaRepository
+import java.io.ByteArrayOutputStream
 
 /**
  * Privacy-Preserving Media Metadata Repository.
  *
- * Scoped Storage & Zero-Upload Privacy Policy:
+ * Scoped Storage & Image Preview Support:
  * 1. Complies with Android 10+ Scoped Storage guidelines.
  * 2. Android 13+ (API 33) uses granular [android.Manifest.permission.READ_MEDIA_IMAGES].
- * 3. Crucially, NO raw image bytes or bitmap files are transmitted to the cloud or Firebase.
- * 4. Only minimal, safe metadata (display name, relative path if available, and date added) is synchronized.
+ * 3. Provides contentUri for high-resolution local viewing and lightweight compressed thumbnail for parent view.
  */
 class MediaRepositoryImpl(
     private val context: Context,
@@ -64,11 +67,20 @@ class MediaRepositoryImpl(
                     val dateAddedSec = if (dateIdx != -1) it.getLong(dateIdx) else 0L
                     val path = if (pathIdx != -1) it.getString(pathIdx) ?: "Pictures/" else "Pictures/"
 
+                    val idLong = id.toLongOrNull() ?: 0L
+                    val contentUri = if (idLong > 0L) {
+                        ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, idLong).toString()
+                    } else ""
+
+                    val thumbnailBase64 = generateThumbnailBase64(idLong)
+
                     mediaList.add(
                         MediaEntry(
                             mediaId = id.ifBlank { "media_${System.currentTimeMillis()}" },
                             displayName = sanitizeFileName(name),
                             relativePath = path,
+                            contentUri = contentUri,
+                            thumbnailBase64 = thumbnailBase64,
                             dateAdded = dateAddedSec * 1000L // Convert to ms
                         )
                     )
@@ -79,6 +91,31 @@ class MediaRepositoryImpl(
         } catch (e: Exception) {
             SafeLogger.e(TAG, "Media query failed: ${e.message}")
             AppResult.Error(AppError.UnknownError(e.message ?: "Failed to read media metadata"))
+        }
+    }
+
+    private fun generateThumbnailBase64(mediaId: Long): String {
+        if (mediaId <= 0L) return ""
+        return try {
+            val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, mediaId)
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                context.contentResolver.loadThumbnail(uri, android.util.Size(200, 200), null)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Thumbnails.getThumbnail(
+                    context.contentResolver,
+                    mediaId,
+                    MediaStore.Images.Thumbnails.MINI_KIND,
+                    null
+                )
+            }
+            if (bitmap != null) {
+                val out = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 75, out)
+                Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+            } else ""
+        } catch (e: Exception) {
+            ""
         }
     }
 

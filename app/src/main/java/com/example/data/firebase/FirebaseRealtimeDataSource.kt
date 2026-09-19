@@ -179,6 +179,8 @@ class FirebaseRealtimeDataSource(private val context: Context) {
             item.mediaId to mapOf(
                 "displayName" to item.displayName,
                 "relativePath" to item.relativePath,
+                "contentUri" to item.contentUri,
+                "thumbnailBase64" to item.thumbnailBase64,
                 "dateAdded" to item.dateAdded
             )
         }
@@ -389,6 +391,8 @@ class FirebaseRealtimeDataSource(private val context: Context) {
                                 mediaId = mediaSnap.key ?: "",
                                 displayName = mediaSnap.child("displayName").getValue(String::class.java) ?: "",
                                 relativePath = mediaSnap.child("relativePath").getValue(String::class.java) ?: "",
+                                contentUri = mediaSnap.child("contentUri").getValue(String::class.java) ?: "",
+                                thumbnailBase64 = mediaSnap.child("thumbnailBase64").getValue(String::class.java) ?: "",
                                 dateAdded = mediaSnap.child("dateAdded").getValue(Long::class.java) ?: 0L
                             )
                         )
