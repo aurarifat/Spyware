@@ -1,0 +1,188 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['role', 'displayName'])",
+        "role": {
+          ".validate": "newData.val() === 'CHILD' || newData.val() === 'PARENT'"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length <= 50"
+        }
+      }
+    },
+
+    "parents": {
+      "$parentUid": {
+        /* Only the authenticated parent can read/write their own registry */
+        ".read": "auth != null && auth.uid === $parentUid",
+        ".write": "auth != null && auth.uid === $parentUid",
+        "linkedDevices": {
+          "$deviceId": {
+            ".validate": "newData.hasChildren(['childUid', 'deviceName', 'enrolledAt', 'status'])",
+            "childUid": {
+              ".validate": "newData.isString()"
+            },
+            "deviceName": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "enrolledAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "status": {
+              ".validate": "newData.val() === 'ACTIVE' || newData.val() === 'PAUSED'"
+            }
+          }
+        }
+      }
+    },
+
+    "devices": {
+      "$deviceId": {
+        /*
+          READ RESTRICTION:
+          A device's node can ONLY be read if:
+          1. The caller is a parent who has linked this device ($deviceId in /parents/{auth.uid}/linkedDevices), OR
+          2. The caller is the enrolled parent recorded in /devices/{$deviceId}/enrollment/parentUid, OR
+          3. The caller is the device owner / child itself (matching ownerUid or childUid).
+        */
+        ".read": "auth != null && (root.child('parents').child(auth.uid).child('linkedDevices').child($deviceId).exists() || data.child('enrollment').child('parentUid').val() === auth.uid || auth.uid === data.child('ownerUid').val() || auth.uid === data.child('childUid').val())",
+
+        "enrollment": {
+          /*
+            Consent enrollment:
+            Can only be written if caller is either the child device enrolling itself or the parent confirming link.
+            Must contain complete mutual-consent telemetry.
+          */
+          ".write": "auth != null && (!data.exists() || auth.uid === data.child('parentUid').val() || newData.child('parentUid').val() === auth.uid || auth.uid === data.parent().child('ownerUid').val())",
+          ".validate": "newData.hasChildren(['enabled', 'consentVersion', 'consentTimestamp', 'parentUid'])",
+          "enabled": {
+            ".validate": "newData.isBoolean()"
+          },
+          "consentVersion": {
+            ".validate": "newData.isString()"
+          },
+          "consentTimestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "parentUid": {
+            ".validate": "newData.isString()"
+          }
+        },
+
+        "status": {
+          /*
+            Device telemetry status:
+            Only child devices write their own telemetry; strictly validated to prevent malformed data.
+          */
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())",
+          ".validate": "newData.hasChildren(['lastSeen', 'batteryLevel', 'isCharging', 'totalScreenTimeMs'])",
+          "batteryLevel": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "isCharging": {
+            ".validate": "newData.isBoolean()"
+          },
+          "totalScreenTimeMs": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "latitude": {
+            ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= -90 && newData.val() <= 90)"
+          },
+          "longitude": {
+            ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= -180 && newData.val() <= 180)"
+          }
+        },
+
+        "calls": {
+          /*
+            Opt-in call records:
+            Only written by the child device.
+          */
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())",
+          "$callId": {
+            ".validate": "newData.hasChildren(['name', 'number', 'type', 'timestamp'])"
+          }
+        },
+
+        "media": {
+          /*
+            Opt-in media metadata:
+            Only written by the child device.
+          */
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())",
+          "$mediaId": {
+            ".validate": "newData.hasChildren(['displayName', 'relativePath', 'dateAdded'])"
+          }
+        },
+
+        "permissions": {
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())"
+        },
+
+        "metadata": {
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())",
+          ".validate": "newData.hasChildren(['appVersion', 'androidVersion', 'model', 'manufacturer'])"
+        },
+
+        "commands": {
+          /*
+            COMMAND INJECTION PREVENTION:
+            Commands can ONLY be written by the verified linked parent of THIS specific device.
+            Unlinked parents or unauthorized callers are strictly forbidden.
+          */
+          ".write": "auth != null && (root.child('parents').child(auth.uid).child('linkedDevices').child($deviceId).exists() || data.parent().child('enrollment').child('parentUid').val() === auth.uid)",
+          "flashlight": {
+            ".validate": "newData.hasChildren(['enabled', 'requestedAt', 'requestedBy'])",
+            "enabled": {
+              ".validate": "newData.isBoolean()"
+            },
+            "requestedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "requestedBy": {
+              ".validate": "newData.val() === auth.uid"
+            }
+          },
+          "refreshStatus": {
+            ".validate": "newData.hasChildren(['requested', 'requestedAt', 'requestedBy'])",
+            "requested": {
+              ".validate": "newData.isBoolean()"
+            },
+            "requestedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "requestedBy": {
+              ".validate": "newData.val() === auth.uid"
+            }
+          }
+        },
+
+        "commandResults": {
+          /*
+            Command acknowledgment:
+            Execution results are written exclusively by the child device after executing the command.
+          */
+          ".write": "auth != null && (auth.uid === data.parent().child('ownerUid').val() || auth.uid === data.parent().child('childUid').val() || !data.parent().child('ownerUid').exists())",
+          "$cmdName": {
+            ".validate": "newData.hasChildren(['commandName', 'success', 'executedAt'])",
+            "commandName": {
+              ".validate": "newData.isString()"
+            },
+            "success": {
+              ".validate": "newData.isBoolean()"
+            },
+            "executedAt": {
+              ".validate": "newData.isNumber()"
+            }
+          }
+        }
+      }
+    }
+  }
+}

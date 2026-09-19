@@ -1,0 +1,6 @@
+{
+  "name": "Family Digital Wellbeing",
+  "description": "Transparent family digital wellbeing and parental supervision with explicit consent, dual child/parent mode, screen time tracking, and safety controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
