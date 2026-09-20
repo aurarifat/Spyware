@@ -21,7 +21,9 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -33,6 +35,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.data.p2p.DiscoveredChildDevice
 import com.example.domain.model.LinkedChildDevice
 import com.example.parent.dashboard.ParentDashboardViewModel
 import java.text.SimpleDateFormat
@@ -69,11 +73,13 @@ fun ParentDashboardScreen(
     onSwitchRole: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showLinkDialog by remember { mutableStateOf(false) }
     var inputDeviceId by remember { mutableStateOf("") }
     var inputDeviceName by remember { mutableStateOf("") }
+    var inputIpAddress by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.errorMessage, uiState.successMessage) {
         uiState.errorMessage?.let {
@@ -93,10 +99,59 @@ fun ParentDashboardScreen(
             text = {
                 Column {
                     Text(
-                        "Enter the app-generated Device ID shown on the child's phone:",
+                        "Connect to child phone via Device ID or directly via local Wi-Fi / IP address for real-time camera streaming:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { viewModel.discoverLocalDevices(context) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isDiscovering) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Scanning Wi-Fi network...")
+                        } else {
+                            Icon(Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Auto-Scan Local Wi-Fi")
+                        }
+                    }
+
+                    if (uiState.discoveredDevices.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Discovered Devices (tap to select):", style = MaterialTheme.typography.labelSmall)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        for (dev in uiState.discoveredDevices) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                                    .clickable {
+                                        inputDeviceId = dev.deviceId
+                                        inputDeviceName = dev.deviceName
+                                        inputIpAddress = dev.address
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text(dev.deviceName, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                        Text("${dev.address} (${dev.deviceId})", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = inputDeviceId,
@@ -109,9 +164,19 @@ fun ParentDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
+                        value = inputIpAddress,
+                        onValueChange = { inputIpAddress = it },
+                        label = { Text("Wi-Fi IP Address (e.g. 192.168.1.15:8888)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("link_ip_address_input"),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
                         value = inputDeviceName,
                         onValueChange = { inputDeviceName = it },
-                        label = { Text("Child / Device Label (e.g. Alex's Phone)") },
+                        label = { Text("Child Label (e.g. Alex's Phone)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("link_device_name_input"),
@@ -122,11 +187,17 @@ fun ParentDashboardScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (inputDeviceId.isNotBlank()) {
-                            viewModel.linkChildDevice(inputDeviceId, inputDeviceName)
+                        if (inputDeviceId.isNotBlank() || inputIpAddress.isNotBlank()) {
+                            viewModel.linkChildDeviceWithIp(
+                                rawDeviceId = inputDeviceId,
+                                childName = inputDeviceName,
+                                rawIpAddress = inputIpAddress,
+                                context = context
+                            )
                             showLinkDialog = false
                             inputDeviceId = ""
                             inputDeviceName = ""
+                            inputIpAddress = ""
                         }
                     },
                     modifier = Modifier.testTag("confirm_link_button")

@@ -50,6 +50,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -101,6 +102,45 @@ fun ParentDeviceDetailScreen(
 
     var showUnlinkDialog by remember { mutableStateOf(false) }
     var selectedMediaForFullScreen by remember { mutableStateOf<MediaEntry?>(null) }
+    var showIpDialog by remember { mutableStateOf(false) }
+    var editIpText by remember { mutableStateOf("") }
+
+    if (showIpDialog) {
+        AlertDialog(
+            onDismissRequest = { showIpDialog = false },
+            title = { Text("Configure Child Device IP") },
+            text = {
+                Column {
+                    Text(
+                        "Enter the Local IP Address shown on the child device's dashboard (e.g. 192.168.1.15:8888):",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = editIpText,
+                        onValueChange = { editIpText = it },
+                        label = { Text("Child IP & Port") },
+                        placeholder = { Text("192.168.1.15:8888") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.updateP2PAddress(editIpText)
+                    showIpDialog = false
+                }) {
+                    Text("Save Address")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showIpDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (selectedMediaForFullScreen != null) {
         FullScreenImageViewerDialog(
@@ -364,18 +404,59 @@ fun ParentDeviceDetailScreen(
                     }
 
                     if (onNavigateToLiveCamera != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(
-                            onClick = onNavigateToLiveCamera,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .testTag("parent_open_live_camera_button"),
-                            shape = RoundedCornerShape(10.dp)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Open Live Camera View", fontWeight = FontWeight.SemiBold)
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (uiState.p2pAddress.isNotBlank()) "Child IP: ${uiState.p2pAddress}" else "Direct Wi-Fi: Not Configured",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            editIpText = uiState.p2pAddress
+                                            showIpDialog = true
+                                        }
+                                    ) {
+                                        Text("Set / Change IP", fontSize = 12.sp)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Button(
+                                    onClick = onNavigateToLiveCamera,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                        .testTag("parent_open_live_camera_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Connect Remote Camera (Child)", fontWeight = FontWeight.Bold)
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Streams live video from the child device over local Wi-Fi without using your phone's camera.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

@@ -32,9 +32,13 @@ object Routes {
     const val PARENT_AUTH = "parent_auth"
     const val PARENT_DASHBOARD = "parent_dashboard"
     const val PARENT_DEVICE_DETAIL = "parent_device_detail/{deviceId}/{parentUid}"
+    const val REMOTE_CAMERA_VIEWER = "remote_camera_viewer/{deviceId}/{parentUid}"
 
     fun parentDeviceDetail(deviceId: String, parentUid: String) =
         "parent_device_detail/$deviceId/$parentUid"
+
+    fun remoteCameraViewer(deviceId: String, parentUid: String) =
+        "remote_camera_viewer/$deviceId/$parentUid"
 }
 
 @Composable
@@ -193,13 +197,32 @@ fun AppNavigation(
             val parentUid = backStackEntry.arguments?.getString("parentUid") ?: ""
 
             val detailVm: DeviceDetailViewModel = viewModel(
-                factory = DeviceDetailViewModel.Factory(appContainer, deviceId, parentUid)
+                factory = DeviceDetailViewModel.Factory(appContainer, deviceId, parentUid, context)
             )
 
             ParentDeviceDetailScreen(
                 viewModel = detailVm,
                 onBack = { navController.popBackStack() },
-                onNavigateToLiveCamera = { navController.navigate(Routes.LIVE_CAMERA) }
+                onNavigateToLiveCamera = {
+                    navController.navigate(Routes.remoteCameraViewer(deviceId, parentUid))
+                }
+            )
+        }
+
+        composable(
+            route = Routes.REMOTE_CAMERA_VIEWER,
+            arguments = listOf(
+                navArgument("deviceId") { type = NavType.StringType },
+                navArgument("parentUid") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            val parentUid = backStackEntry.arguments?.getString("parentUid") ?: ""
+
+            com.example.camera.RemoteCameraViewerScreen(
+                deviceId = deviceId,
+                parentUid = parentUid,
+                onBack = { navController.popBackStack() }
             )
         }
 

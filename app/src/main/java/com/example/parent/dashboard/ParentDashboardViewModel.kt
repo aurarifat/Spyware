@@ -20,6 +20,8 @@ data class ParentDashboardUiState(
     val isAuthenticated: Boolean = false,
     val isLoading: Boolean = false,
     val linkedDevices: List<LinkedChildDevice> = emptyList(),
+    val discoveredDevices: List<com.example.data.p2p.DiscoveredChildDevice> = emptyList(),
+    val isDiscovering: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null
 )
@@ -135,6 +137,85 @@ class ParentDashboardViewModel(
                     it.copy(
                         isLoading = false,
                         successMessage = "Linked device: $childName"
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to link device: ${res.errorOrNull()}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun discoverLocalDevices(context: android.content.Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDiscovering = true) }
+            val p2pClient = com.example.data.p2p.ParentP2PClient.getInstance(context)
+            val found = p2pClient.discoverChildDevices(timeoutMs = 2500)
+            _uiState.update { it.copy(discoveredDevices = found, isDiscovering = false) }
+        }
+    }
+
+    fun linkChildDeviceWithIp(
+        rawDeviceId: String,
+        childName: String,
+        rawIpAddress: String,
+        context: android.content.Context
+    ) {
+        val user = _uiState.value.currentUser ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val p2pClient = com.example.data.p2p.ParentP2PClient.getInstance(context)
+
+            val normalizedAddress = if (rawIpAddress.isNotBlank()) {
+                if (!rawIpAddress.contains(":")) "$rawIpAddress:8888" else rawIpAddress
+            } else ""
+
+            var targetDeviceId = rawDeviceId.trim()
+
+            // Try connecting to P2P first if IP provided
+            if (normalizedAddress.isNotBlank()) {
+                val linkRes = p2pClient.linkChildDevice(
+                    hostAndPort = normalizedAddress,
+                    parentUid = user.uid,
+                    parentDisplayName = user.displayName
+                )
+                if (linkRes is AppResult.Success) {
+                    val linkedDeviceId = linkRes.data
+                    if (linkedDeviceId.isNotBlank()) {
+                        targetDeviceId = linkedDeviceId
+                    }
+                    p2pClient.registerDeviceAddress(targetDeviceId, normalizedAddress)
+                    val statusRes = p2pClient.fetchChildStatus(normalizedAddress)
+                    if (statusRes is AppResult.Success) {
+                        appContainer.deviceRepository.updateLocalStateFromP2P(statusRes.data)
+                    }
+                } else if (targetDeviceId.isNotBlank()) {
+                    p2pClient.registerDeviceAddress(targetDeviceId, normalizedAddress)
+                }
+            }
+
+            if (targetDeviceId.isBlank()) {
+                targetDeviceId = "dev_${System.currentTimeMillis() % 100000}"
+            }
+
+            val device = LinkedChildDevice(
+                deviceId = targetDeviceId,
+                childUid = "child_$targetDeviceId",
+                deviceName = childName.ifBlank { "Child Device ($targetDeviceId)" },
+                enrolledAt = System.currentTimeMillis(),
+                status = "ACTIVE"
+            )
+
+            val res = appContainer.deviceRepository.linkChildToParent(user.uid, device)
+            if (res is AppResult.Success) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        successMessage = "Linked device: ${device.deviceName}"
                     )
                 }
             } else {

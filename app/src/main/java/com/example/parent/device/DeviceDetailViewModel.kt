@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class DeviceDetailUiState(
@@ -19,18 +20,23 @@ data class DeviceDetailUiState(
     val deviceState: ChildDeviceFullState? = null,
     val isActionLoading: Boolean = false,
     val feedbackMessage: String? = null,
-    val isUnlinked: Boolean = false
+    val isUnlinked: Boolean = false,
+    val p2pAddress: String = ""
 )
 
 class DeviceDetailViewModel(
     private val appContainer: AppContainer,
-    private val deviceId: String,
-    private val parentUid: String,
+    val deviceId: String,
+    val parentUid: String,
     private val context: android.content.Context? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        DeviceDetailUiState(deviceId = deviceId, parentUid = parentUid)
+        DeviceDetailUiState(
+            deviceId = deviceId,
+            parentUid = parentUid,
+            p2pAddress = if (context != null) com.example.data.p2p.ParentP2PClient.getInstance(context).getDeviceAddress(deviceId) ?: "" else ""
+        )
     )
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
 
@@ -39,11 +45,21 @@ class DeviceDetailViewModel(
         startP2PSync()
     }
 
+    fun updateP2PAddress(address: String) {
+        val trimmed = address.trim()
+        val normalized = if (trimmed.isNotBlank() && !trimmed.contains(":")) "$trimmed:8888" else trimmed
+        if (context != null) {
+            val p2pClient = com.example.data.p2p.ParentP2PClient.getInstance(context)
+            p2pClient.setDeviceAddress(deviceId, normalized)
+        }
+        _uiState.update { it.copy(p2pAddress = normalized, feedbackMessage = "Device address updated: $normalized") }
+    }
+
     private fun startP2PSync() {
         if (context == null) return
         val p2pClient = com.example.data.p2p.ParentP2PClient.getInstance(context)
         viewModelScope.launch {
-            while (kotlinx.coroutines.isActive) {
+            while (isActive) {
                 try {
                     val address = p2pClient.getDeviceAddress(deviceId) ?: "127.0.0.1:8888"
                     val res = p2pClient.fetchChildStatus(address)

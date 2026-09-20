@@ -10,7 +10,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import com.example.core.common.SafeLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,17 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
+
+private class CustomLifecycleOwner : LifecycleOwner {
+    private val registry = LifecycleRegistry(this).apply {
+        currentState = Lifecycle.State.RESUMED
+    }
+    override val lifecycle: Lifecycle = registry
+
+    fun destroy() {
+        registry.currentState = Lifecycle.State.DESTROYED
+    }
+}
 
 /**
  * Manages background and in-app CameraX frame capture for remote camera streaming.
@@ -43,6 +56,7 @@ class ChildCameraStreamManager private constructor() {
     private var cameraProvider: ProcessCameraProvider? = null
     private var camera: Camera? = null
     private var cameraExecutor: ExecutorService? = null
+    private var lifecycleOwner: CustomLifecycleOwner? = null
 
     private var currentLensFacing = CameraSelector.LENS_FACING_BACK
     private var lastFrameTime = 0L
@@ -91,8 +105,11 @@ class ChildCameraStreamManager private constructor() {
 
         try {
             provider.unbindAll()
+            lifecycleOwner?.destroy()
+            val owner = CustomLifecycleOwner()
+            lifecycleOwner = owner
             camera = provider.bindToLifecycle(
-                ProcessLifecycleOwner.get(),
+                owner,
                 selector,
                 analysis
             )
@@ -185,6 +202,8 @@ class ChildCameraStreamManager private constructor() {
 
         CoroutineScope(Dispatchers.Main).launch {
             try {
+                lifecycleOwner?.destroy()
+                lifecycleOwner = null
                 cameraProvider?.unbindAll()
                 camera = null
                 cameraExecutor?.shutdown()

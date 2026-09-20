@@ -32,7 +32,10 @@ data class ChildModeUiState(
     val media: List<MediaEntry> = emptyList(),
     val permissions: Map<String, Boolean> = emptyMap(),
     val message: String? = null,
-    val isFlashlightActive: Boolean = false
+    val isFlashlightActive: Boolean = false,
+    val localIpAddress: String = "",
+    val p2pPort: Int = 8888,
+    val pairingCode: String = ""
 )
 
 class ChildModeViewModel(
@@ -49,12 +52,17 @@ class ChildModeViewModel(
         val parentUid = appContainer.localPrefs.getLinkedParentUid() ?: ""
         val name = appContainer.localPrefs.getChildDeviceName()
 
+        val ip = com.example.data.p2p.P2PNetworkUtils.getLocalIpAddress()
+        val code = com.example.data.p2p.P2PNetworkUtils.generateShortPairingCode(devId)
+
         _uiState.update {
             it.copy(
                 deviceId = devId,
                 deviceName = name,
                 isConsentGiven = consent,
-                linkedParentUid = parentUid
+                linkedParentUid = parentUid,
+                localIpAddress = ip,
+                pairingCode = code
             )
         }
 
@@ -62,6 +70,15 @@ class ChildModeViewModel(
         observeDeviceCommands(devId)
         refreshLocalStatus()
         loadRecentMedia()
+        startP2PHub()
+    }
+
+    private fun startP2PHub() {
+        try {
+            com.example.data.p2p.ChildP2PServer.getInstance(appContext, appContainer).start()
+        } catch (e: Exception) {
+            // Log and ignore
+        }
     }
 
     private fun initializeChildAuth() {

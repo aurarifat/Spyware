@@ -201,8 +201,7 @@ class ChildP2PServer(
         val media = if (mediaRes is com.example.core.common.AppResult.Success) mediaRes.data else emptyList()
 
         // Metadata
-        val metaRes = appContainer.diagnosticsRepository.collectDeviceMetadata()
-        val meta = if (metaRes is com.example.core.common.AppResult.Success) metaRes.data else com.example.domain.model.DeviceMetadata()
+        val meta = appContainer.diagnosticsRepository.getDeviceMetadata()
 
         val json = JSONObject().apply {
             put("deviceId", deviceId)
@@ -267,7 +266,7 @@ class ChildP2PServer(
             })
 
             put("isCameraStreaming", streamManager.isStreamingActive.value)
-            put("isFlashlightOn", appContainer.flashlightController.isFlashlightOn.value)
+            put("isFlashlightOn", appContainer.flashlightController.isTorchOn)
         }
 
         sendHttpResponse(out, 200, "application/json", json.toString())
@@ -312,7 +311,7 @@ class ChildP2PServer(
             when (command) {
                 "flashlight" -> {
                     val enabled = json.optBoolean("enabled", false)
-                    appContainer.flashlightController.setFlashlight(enabled)
+                    appContainer.flashlightController.setTorch(enabled)
                     sendHttpResponse(out, 200, "application/json", "{\"success\":true,\"flashlight\":$enabled}")
                 }
                 "refresh" -> {

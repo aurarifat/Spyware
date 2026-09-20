@@ -30,7 +30,11 @@ data class DiscoveredChildDevice(
     val deviceName: String,
     val ipAddress: String,
     val port: Int
-)
+) {
+    val address: String get() = "$ipAddress:$port"
+}
+
+typealias P2PDeviceInfo = DiscoveredChildDevice
 
 /**
  * Client used by Parent mode to discover, link, monitor, and command Child devices over local Wi-Fi / P2P.
@@ -51,6 +55,10 @@ class ParentP2PClient(private val context: Context) {
         val cleanIp = ipAddress.trim().removePrefix("http://").removePrefix("https://").substringBefore("/")
         deviceAddressMap[deviceId] = cleanIp
         SafeLogger.i(TAG, "Registered child address: $deviceId -> $cleanIp")
+    }
+
+    fun setDeviceAddress(deviceId: String, ipAddress: String) {
+        registerDeviceAddress(deviceId, ipAddress)
     }
 
     fun getDeviceAddress(deviceId: String): String? {
@@ -92,7 +100,7 @@ class ParentP2PClient(private val context: Context) {
                             val port = parts.getOrNull(4)?.toIntOrNull() ?: P2PNetworkUtils.DEFAULT_PORT
 
                             registerDeviceAddress(deviceId, "$ip:$port")
-                            discovered.add(DiscoveredChildDevice(deviceId, deviceName, ip, port))
+                            discovered.add(DiscoveredChildDevice(deviceId = deviceId, deviceName = deviceName, ipAddress = ip, port = port))
                         }
                     }
                 } catch (e: Exception) {
@@ -142,12 +150,12 @@ class ParentP2PClient(private val context: Context) {
                     }
                     AppResult.Success(deviceId)
                 } else {
-                    AppResult.Error(AppError.Unknown("Link failed with HTTP ${response.code}"))
+                    AppResult.Error(AppError.UnknownError("Link failed with HTTP ${response.code}"))
                 }
             }
         } catch (e: Exception) {
             SafeLogger.e(TAG, "Error linking child over P2P: ${e.message}")
-            AppResult.Error(AppError.Unknown("Cannot reach child device at $hostAndPort: ${e.message}"))
+            AppResult.Error(AppError.UnknownError("Cannot reach child device at $hostAndPort: ${e.message}"))
         }
     }
 
@@ -161,7 +169,7 @@ class ParentP2PClient(private val context: Context) {
 
             httpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
-                    val body = response.body?.string() ?: return@withContext AppResult.Error(AppError.Unknown("Empty response"))
+                    val body = response.body?.string() ?: return@withContext AppResult.Error(AppError.UnknownError("Empty response"))
                     val json = JSONObject(body)
 
                     val deviceId = json.optString("deviceId", "")
@@ -261,11 +269,11 @@ class ParentP2PClient(private val context: Context) {
 
                     AppResult.Success(fullState)
                 } else {
-                    AppResult.Error(AppError.Unknown("HTTP ${response.code}"))
+                    AppResult.Error(AppError.UnknownError("HTTP ${response.code}"))
                 }
             }
         } catch (e: Exception) {
-            AppResult.Error(AppError.Unknown("Failed fetching status: ${e.message}"))
+            AppResult.Error(AppError.UnknownError("Failed fetching status: ${e.message}"))
         }
     }
 
@@ -293,11 +301,11 @@ class ParentP2PClient(private val context: Context) {
                 if (response.isSuccessful) {
                     AppResult.Success(true)
                 } else {
-                    AppResult.Error(AppError.Unknown("Command failed with HTTP ${response.code}"))
+                    AppResult.Error(AppError.UnknownError("Command failed with HTTP ${response.code}"))
                 }
             }
         } catch (e: Exception) {
-            AppResult.Error(AppError.Unknown("Error sending command: ${e.message}"))
+            AppResult.Error(AppError.UnknownError("Error sending command: ${e.message}"))
         }
     }
 
@@ -326,11 +334,11 @@ class ParentP2PClient(private val context: Context) {
                     val body = response.body?.string() ?: "{}"
                     AppResult.Success(JSONObject(body))
                 } else {
-                    AppResult.Error(AppError.Unknown("Camera control failed: HTTP ${response.code}"))
+                    AppResult.Error(AppError.UnknownError("Camera control failed: HTTP ${response.code}"))
                 }
             }
         } catch (e: Exception) {
-            AppResult.Error(AppError.Unknown("Camera control error: ${e.message}"))
+            AppResult.Error(AppError.UnknownError("Camera control error: ${e.message}"))
         }
     }
 
